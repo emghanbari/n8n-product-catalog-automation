@@ -1,0 +1,397 @@
+{
+  "name": "Proj1",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Product Catalog Comparison",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Current catalog",
+              "fieldType": "file",
+              "fieldName": "catalog_current",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Supplier update",
+              "fieldType": "file",
+              "fieldName": "supplier_update",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        -560,
+        -176
+      ],
+      "id": "4eb0d104-eab0-4ff8-8c41-63e82a262294",
+      "name": "On form submission"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "binaryPropertyName": "catalog_current",
+        "destinationKey": "catalog",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.2,
+      "position": [
+        -304,
+        -176
+      ],
+      "id": "aa948d8a-7ca7-4f58-91df-957ace84407d",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "binaryPropertyName": "supplier_update",
+        "destinationKey": "supplier",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.2,
+      "position": [
+        -80,
+        -176
+      ],
+      "id": "a7e3ef8e-6144-4e1e-afd3-edc081804e05",
+      "name": "Extract from File1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const supplierProducts = $('Extract from File1').first().json.supplier.products;\n\nconst catalogById = new Map(\n  $input.all().map(({ json }) => [String(json.id), json])\n);\n\nreturn supplierProducts.map(product => {\n  const previous = catalogById.get(String(product.id));\n\n  return {\n    json: {\n      id: product.id,\n      title: product.title,\n      old_price: previous?.price == null ? null : Number(previous.price),\n      new_price: product.price == null ? null : Number(product.price),\n      old_stock: previous?.stock ?? null,\n      new_stock: product.stock ?? null,\n      stock_missing: product.stock == null\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        384,
+        -176
+      ],
+      "id": "554246d3-4462-4ddd-a51e-8d608db889a6",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 4
+          },
+          "conditions": [
+            {
+              "id": "ec847931-053f-4b8a-9c23-b84e6f81c383",
+              "leftValue": "={{ $json.new_price }}",
+              "rightValue": "={{ $json.old_price }}",
+              "operator": {
+                "type": "number",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "3b45406d-8a44-42f5-9b14-e7b0e3479ffd",
+              "leftValue": "={{ $json.stock_missing }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "f047ed79-ebf9-4b01-b2b9-880d87a2b11b",
+              "leftValue": "={{ $json.new_stock != null && String($json.new_stock).trim() !== '' && ($json.old_stock == null || Number($json.new_stock) !== Number($json.old_stock)) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        640,
+        -176
+      ],
+      "id": "f41adaba-aeed-4ed6-998e-5c1ad02ea9e1",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ca971ac6-ed2e-4a98-89f4-df5d7ccd557b",
+              "name": "review_reason",
+              "value": "={{ [\n  $json.new_price !== $json.old_price ? 'Price changed' : '',\n  $json.stock_missing ? 'Stock missing' : ''\n].filter(Boolean).join(', ') }}",
+              "type": "string"
+            },
+            {
+              "id": "73733910-5556-4dd3-b351-562589e5697a",
+              "name": "review_decision",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        880,
+        -192
+      ],
+      "id": "0497463d-6784-438e-9224-232985cc5104",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "options": {
+          "fileName": "catalog_review.xlsx"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.2,
+      "position": [
+        -512,
+        128
+      ],
+      "id": "801a4548-4570-45cb-9b2a-3478f183c4e1",
+      "name": "Convert to File"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "catalog.products",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1.1,
+      "position": [
+        192,
+        144
+      ],
+      "id": "321ee094-45e1-4748-a815-ee6bfc8307af",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "products",
+          "mode": "list",
+          "cachedResultName": "products"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $json.id }}",
+            "title": "={{ $json.title }}",
+            "price": "={{ $json.price }}",
+            "stock": "={{ $json.stock }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": true,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "price",
+              "displayName": "price",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "stock",
+              "displayName": "stock",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "skipOnConflict": true
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.8,
+      "position": [
+        416,
+        144
+      ],
+      "id": "96f2019f-3f9f-409a-b8a6-3cf5f60e7354",
+      "name": "Insert rows in a table"
+      
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, title, price, stock\nFROM public.products\nORDER BY id;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.8,
+      "position": [
+        144,
+        -176
+      ],
+      "id": "b942c44f-ba0c-4416-ae63-a0bab01d9c28",
+      "name": "Execute a SQL query"
+      
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Extract from File1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File1": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Insert rows in a table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "a918397e-afb8-4de2-80fd-8ba2c266503e",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": [],
+  "id": "7BFwfEhLYqgIE4Et",
+  "tags": []
+}
