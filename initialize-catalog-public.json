@@ -1,0 +1,57 @@
+{
+  "name": "Initialize Catalog",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -224,
+        -64
+      ],
+      "id": "6ad9a1fe-ac38-4aeb-83ef-3bd1c468a444",
+      "name": "When clicking \u2018Execute workflow\u2019"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "CREATE TABLE IF NOT EXISTS products (\n    id INTEGER PRIMARY KEY,\n    title TEXT NOT NULL,\n    price NUMERIC(10, 2) NOT NULL,\n    stock INTEGER\n);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.8,
+      "position": [
+        32,
+        -64
+      ],
+      "id": "9b1e0dd7-3200-4c5b-9e10-0d23c1a0a57a",
+      "name": "Execute a SQL query"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking \u2018Execute workflow\u2019": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "dbbfe959-f273-4864-8cdc-b177edcd8793",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": [],
+  "id": "tqh3Z4rACcxxTDdl",
+  "tags": []
+}
