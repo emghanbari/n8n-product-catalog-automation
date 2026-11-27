@@ -1,0 +1,293 @@
+{
+  "name": "supplier-catalog-update",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Product Catalog Comparison",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Supplier Catalog",
+              "fieldType": "file",
+              "fieldName": "supplier_file",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        -560,
+        -176
+      ],
+      "id": "4eb0d104-eab0-4ff8-8c41-63e82a262294",
+      "name": "Upload Supplier Catalog"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, title, price, stock\nFROM public.products\nORDER BY id;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.8,
+      "position": [
+        -16,
+        -176
+      ],
+      "id": "b942c44f-ba0c-4416-ae63-a0bab01d9c28",
+      "name": "Get Current Products",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get supplier products from Excel\nconst supplierProducts = $('Extract Supplier Excel')\n    .all()\n    .map(item => item.json);\n\n// Create a lookup map for current products\nconst catalogById = new Map(\n    $input.all().map(({ json }) => [String(json.id), json])\n);\n\n// Compare each supplier product with the current catalog\nreturn supplierProducts.map(product => {\n\n    const previous = catalogById.get(String(product.id));\n\n    // Check for missing supplier values\n    const priceMissing = product.price == null ||\n        String(product.price).trim() === '';\n\n    const stockMissing = product.stock == null ||\n        String(product.stock).trim() === '';\n\n    return {\n        json: {\n            id: product.id,\n            title: product.title,\n\n            old_price: previous?.price == null\n                ? null : Number(previous.price),\n\n            new_price: priceMissing\n                ? null : Number(product.price),\n\n            old_stock: previous?.stock ?? null,\n\n            new_stock: stockMissing\n                ? null : Number(product.stock),\n\n            price_missing: priceMissing,\n            stock_missing: stockMissing\n        }\n    };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        -176
+      ],
+      "id": "554246d3-4462-4ddd-a51e-8d608db889a6",
+      "name": "Compare Catalogs and Detect Changes"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 4
+          },
+          "conditions": [
+            {
+              "id": "ec847931-053f-4b8a-9c23-b84e6f81c383",
+              "leftValue": "={{ $json.new_price != null &&\n   ($json.old_price == null ||\n    Number($json.new_price) !== Number($json.old_price)) }}",
+              "rightValue": "={{ $json.old_price }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "3b45406d-8a44-42f5-9b14-e7b0e3479ffd",
+              "leftValue": "={{ $json.stock_missing }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "f047ed79-ebf9-4b01-b2b9-880d87a2b11b",
+              "leftValue": "={{ $json.new_stock != null && String($json.new_stock).trim() !== '' && ($json.old_stock == null || Number($json.new_stock) !== Number($json.old_stock)) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "ec3f7177-7a89-4d09-b647-1109b22f4cc3",
+              "leftValue": "={{ $json.price_missing }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        464,
+        -176
+      ],
+      "id": "f41adaba-aeed-4ed6-998e-5c1ad02ea9e1",
+      "name": "Requires Review?"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ca971ac6-ed2e-4a98-89f4-df5d7ccd557b",
+              "name": "review_reason",
+              "value": "={{ [\n    $json.price_missing ? 'Price missing' : null,\n    $json.stock_missing ? 'Stock missing' : null,\n    !$json.price_missing && $json.old_price !== $json.new_price\n        ? 'Price changed' : null,\n    !$json.stock_missing && $json.old_stock !== $json.new_stock\n        ? 'Stock changed' : null\n].filter(Boolean).join(', ') }}",
+              "type": "string"
+            },
+            {
+              "id": "73733910-5556-4dd3-b351-562589e5697a",
+              "name": "review_decision",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        720,
+        -192
+      ],
+      "id": "0497463d-6784-438e-9224-232985cc5104",
+      "name": "Prepare Catalog Review"
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "options": {
+          "fileName": "catalog_review.xlsx"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.2,
+      "position": [
+        -512,
+        128
+      ],
+      "id": "801a4548-4570-45cb-9b2a-3478f183c4e1",
+      "name": "Generate Catalog Review Excel"
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "binaryPropertyName": "supplier_file",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.2,
+      "position": [
+        -272,
+        -176
+      ],
+      "id": "a7e3ef8e-6144-4e1e-afd3-edc081804e05",
+      "name": "Extract Supplier Excel"
+    },
+    {
+      "parameters": {
+        "sendTo": "employee@example.com",
+        "subject": "Catalog Review – Approval Required",
+        "emailType": "text",
+        "message": "Hello,\n\nPlease review the product changes in the attached Excel file.\n\nFor each product, enter one of the following decisions\nin the review_decision column:\n\n- approved: Approve the proposed changes.\n- rejected: Reject the proposed changes.\n- needs_info: Request missing information from the supplier.\n\nThank you.",
+        "options": {
+          "attachmentsUi": {
+            "attachmentsBinary": [
+              {}
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -288,
+        128
+      ],
+      "id": "b54bbbbc-868c-4d2b-9f4d-26f559adf6fd",
+      "name": "Email Catalog Review to Employee"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Upload Supplier Catalog": {
+      "main": [
+        [
+          {
+            "node": "Extract Supplier Excel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Current Products": {
+      "main": [
+        [
+          {
+            "node": "Compare Catalogs and Detect Changes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compare Catalogs and Detect Changes": {
+      "main": [
+        [
+          {
+            "node": "Requires Review?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Requires Review?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Catalog Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Catalog Review": {
+      "main": [
+        [
+          {
+            "node": "Generate Catalog Review Excel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Supplier Excel": {
+      "main": [
+        [
+          {
+            "node": "Get Current Products",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Catalog Review Excel": {
+      "main": [
+        [
+          {
+            "node": "Email Catalog Review to Employee",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "nodeGroups": [],
+  "tags": []
+}
